@@ -62,16 +62,19 @@ jobs:
             echo "RECIPE_APP_URL / PRICE_IMPORT_TOKEN secrets not set - skipping the upload"; exit 0
           fi
           file=$(ls -t reports/*.xlsx | head -1)
+          # Only the site's address is needed - drop any page path pasted with it (e.g. /skus).
+          base=$(printf '%s' "$RECIPE_APP_URL" | sed -E 's#^(https?://[^/]+).*#\1#')
           echo "Importing $file"
           bypass=()
           [ -n "$VERCEL_BYPASS_SECRET" ] && bypass=(-H "x-vercel-protection-bypass: $VERCEL_BYPASS_SECRET")
-          status=$(curl -sS -o response.txt -w '%{http_code}' -X POST \
+          status=$(curl -sS -o response.txt -D headers.txt -w '%{http_code}' -X POST \
             -H "Authorization: Bearer $PRICE_IMPORT_TOKEN" \
             -H "Content-Type: application/octet-stream" \
             "${bypass[@]}" \
             --data-binary @"$file" \
-            "${RECIPE_APP_URL%/}/api/price-list/import?file=$(basename "$file")")
+            "$base/api/price-list/import?file=$(basename "$file")")
           echo "HTTP $status"
+          grep -i '^location:' headers.txt || true
           head -c 2000 response.txt; echo
           if [ "$status" != 200 ]; then
             if [ "${status:0:1}" = 3 ]; then
