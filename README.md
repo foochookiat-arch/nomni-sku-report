@@ -18,6 +18,9 @@ After saving the file, the workflow uploads it to the recipe costing app (SKU Li
 
 - `RECIPE_APP_URL`: the app's live address, for example `https://your-app.vercel.app`
 - `PRICE_IMPORT_TOKEN`: the same value as `PRICE_IMPORT_TOKEN` in the app's Vercel environment variables
+- `VERCEL_BYPASS_SECRET`: needed because the app has Vercel Authentication on. In Vercel, open the project's **Settings → Deployment Protection → Protection Bypass for Automation**, create a secret, and paste it here.
+
+If the upload step fails, its log shows the HTTP status and the app's reply.
 
 ## Running a specific day
 
