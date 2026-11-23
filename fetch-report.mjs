@@ -17,6 +17,9 @@ if (!EMAIL || !PASSWORD) {
   process.exit(1);
 }
 
+const SCRIPT_VERSION = 'v3 (2026-11-23)';
+console.log(`fetch-report ${SCRIPT_VERSION}`);
+
 const LOGIN_URL = 'https://buyer.zeemart.co/login';
 const REPORT_URL = 'https://buyer.zeemart.co/sg/pages/reports/spending/sku';
 const EXPORT_PATTERN = '**/services/reports/spendings/sku/excel/summary**';
@@ -103,9 +106,27 @@ try {
 
   // ---- Open report and click Export -> Summary ----
   await page.goto(REPORT_URL, { waitUntil: 'networkidle' });
-  const exportBtn = await firstVisible(page, ['a.export-mclr', 'text=Export'], 45000);
+  console.log('Step: report page loaded');
+  // "Filter" and "Export" share the class export-mclr, so match on the text.
+  const exportBtn = page.locator('a.export-mclr', { hasText: /^\s*Export\s*$/ }).first();
+  await exportBtn.waitFor({ state: 'visible', timeout: 45000 });
+  await page.waitForTimeout(2000); // let the table finish rendering
+
+  // Close the Filter panel (or any other dropdown) if it is open, since it covers the Export menu.
+  await page.keyboard.press('Escape');
+  await page.locator('h1, h2, .page-title').first().click({ timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  console.log('Step: closed any open panels');
+
   await exportBtn.click();
-  await (await firstVisible(page, ['text=Summary'])).click();
+  console.log('Step: clicked Export');
+  await page.waitForTimeout(1000);
+
+  // Click "Summary" directly in the page so an overlapping panel can't block it.
+  const summaryItem = page.locator('a.dropdown-item', { hasText: /^\s*Summary\s*$/ }).first();
+  await summaryItem.waitFor({ state: 'attached', timeout: 15000 });
+  await summaryItem.evaluate((el) => el.click());
+  console.log('Step: clicked Summary, waiting for file');
 
   const bytes = await Promise.race([
     fileSaved,
