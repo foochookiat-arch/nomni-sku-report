@@ -17,7 +17,7 @@ if (!EMAIL || !PASSWORD) {
   process.exit(1);
 }
 
-const SCRIPT_VERSION = 'v3 (2026-11-23)';
+const SCRIPT_VERSION = 'v4 (2026-11-23)';
 console.log(`fetch-report ${SCRIPT_VERSION}`);
 
 const LOGIN_URL = 'https://buyer.zeemart.co/login';
@@ -94,10 +94,22 @@ try {
       if (resp.status() !== 200 || body.length < 100) {
         throw new Error(`Export returned HTTP ${resp.status()}, ${body.length} bytes`);
       }
+      // Nomni wraps the file in JSON: { data: { fileName, base64Data } }. Unwrap it.
+      let xlsx = body;
+      if (body[0] === 0x7b /* '{' */) {
+        const json = JSON.parse(body.toString('utf8'));
+        const b64 = json?.data?.base64Data;
+        if (!b64) throw new Error(`Export JSON had no file: ${json?.message ?? 'unknown'}`);
+        xlsx = Buffer.from(b64, 'base64');
+        console.log(`Nomni file name: ${json.data.fileName}`);
+      }
+      if (xlsx[0] !== 0x50 || xlsx[1] !== 0x4b) { // real .xlsx files start with "PK"
+        throw new Error('Downloaded file is not a valid Excel file');
+      }
       await fs.mkdir(OUT_DIR, { recursive: true });
-      await fs.writeFile(outFile, body);
+      await fs.writeFile(outFile, xlsx);
       await route.fulfill({ response: resp, body });
-      resolveFile(body.length);
+      resolveFile(xlsx.length);
     } catch (err) {
       rejectFile(err);
       await route.abort().catch(() => {});
@@ -116,6 +128,15 @@ try {
   await page.keyboard.press('Escape');
   await page.locator('h1, h2, .page-title').first().click({ timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(500);
+  const filterApply = page.locator('button.filter-btn');
+  if (await filterApply.isVisible().catch(() => false)) {
+    // Still open: toggle it shut with the Filter link.
+    await page.locator('a.export-mclr', { hasText: /^\s*Filter\s*$/ }).first().click();
+    await page.waitForTimeout(500);
+  }
+  if (await filterApply.isVisible().catch(() => false)) {
+    throw new Error('Filter panel is still open and blocks the Export menu');
+  }
   console.log('Step: closed any open panels');
 
   await exportBtn.click();
@@ -124,7 +145,11 @@ try {
 
   // Click "Summary" directly in the page so an overlapping panel can't block it.
   const summaryItem = page.locator('a.dropdown-item', { hasText: /^\s*Summary\s*$/ }).first();
-  await summaryItem.waitFor({ state: 'attached', timeout: 15000 });
+  if (!(await summaryItem.isVisible().catch(() => false))) {
+    await exportBtn.click(); // menu didn't open, try once more
+    await page.waitForTimeout(1000);
+  }
+  await summaryItem.waitFor({ state: 'visible', timeout: 15000 });
   await summaryItem.evaluate((el) => el.click());
   console.log('Step: clicked Summary, waiting for file');
 
