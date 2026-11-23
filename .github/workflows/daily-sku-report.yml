@@ -41,6 +41,22 @@ jobs:
           git diff --cached --quiet || git commit -m "SKU spending report $(ls -t reports | head -1)"
           git push
 
+      - name: Send report to the recipe costing app
+        env:
+          RECIPE_APP_URL: ${{ secrets.RECIPE_APP_URL }}
+          PRICE_IMPORT_TOKEN: ${{ secrets.PRICE_IMPORT_TOKEN }}
+        run: |
+          if [ -z "$RECIPE_APP_URL" ] || [ -z "$PRICE_IMPORT_TOKEN" ]; then
+            echo "RECIPE_APP_URL / PRICE_IMPORT_TOKEN secrets not set - skipping the upload"; exit 0
+          fi
+          file=$(ls -t reports/*.xlsx | head -1)
+          echo "Importing $file"
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $PRICE_IMPORT_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$file" \
+            "${RECIPE_APP_URL%/}/api/price-list/import?file=$(basename "$file")"
+
       - name: Keep a copy as a downloadable artifact
         uses: actions/upload-artifact@v4
         with:

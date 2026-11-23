@@ -12,6 +12,13 @@ Every morning at about 10am Singapore time, GitHub logs in to Nomni Procure (buy
    - When it succeeds, `reports/` has yesterday's file.
    - If it fails, open the run and download the `failure-screenshot` artifact to see where it stopped.
 
+## Sending the report to the recipe costing app
+
+After saving the file, the workflow uploads it to the recipe costing app (SKU Listing), the same as **Upload Price List**: unchanged prices just update the month, and price changes or new items go to **Review Price**. It needs two more repository secrets:
+
+- `RECIPE_APP_URL`: the app's live address, for example `https://your-app.vercel.app`
+- `PRICE_IMPORT_TOKEN`: the same value as `PRICE_IMPORT_TOKEN` in the app's Vercel environment variables
+
 ## Running a specific day
 
 Use **Run workflow** and fill in `report_date` (for example `2026-11-20`).
