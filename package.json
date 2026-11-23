@@ -1,0 +1,11 @@
+{
+  "name": "nomni-sku-report",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fetch": "node fetch-report.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}

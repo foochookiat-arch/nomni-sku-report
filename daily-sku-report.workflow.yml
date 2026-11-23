@@ -1,0 +1,56 @@
+name: Daily Nomni SKU spending report
+
+on:
+  schedule:
+    - cron: '47 1 * * *'   # 09:47 Singapore time daily (GitHub may start it a few minutes late)
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: 'Day to export (YYYY-MM-DD). Leave blank for yesterday.'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+
+      - name: Download yesterday's SKU spending report
+        env:
+          NOMNI_EMAIL: ${{ secrets.NOMNI_EMAIL }}
+          NOMNI_PASSWORD: ${{ secrets.NOMNI_PASSWORD }}
+          REPORT_DATE: ${{ github.event.inputs.report_date }}
+        run: npm run fetch
+
+      - name: Save report to the repo
+        run: |
+          git config user.name "nomni-report-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add reports/
+          git diff --cached --quiet || git commit -m "SKU spending report $(ls -t reports | head -1)"
+          git push
+
+      - name: Keep a copy as a downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sku-report
+          path: reports/
+          retention-days: 30
+
+      - name: Upload screenshot if it failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-screenshot
+          path: debug/
